@@ -1,0 +1,31 @@
+{
+  "name": "xcp-proxy",
+  "version": "0.0.1",
+  "description": "A proxy for addrindexrs and some QOL stuff for counterparty",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js server",
+    "dev": "nodemon index.js server",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "John \"Chiguireitor\" Villar",
+  "license": "ISC",
+  "dependencies": {
+    "connect-redis": "^5.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^8.2.0",
+    "express": "^4.17.1",
+    "express-session": "^1.17.1",
+    "express-ws": "^4.0.0",
+    "helmet": "^4.2.0",
+    "jayson": "^3.3.4",
+    "mariadb": "^2.5.1",
+    "redis": "^3.0.2",
+    "ws": "^7.4.0",
+    "yargs": "^16.1.1",
+    "zeromq": "^6.0.0-beta.6"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.6"
+  }
+}
