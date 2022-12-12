@@ -25,11 +25,15 @@ const DEFAULT_SESSION_SECRET = 'configure this!'
 const SESSION_SECRET = process.env.SESSION_SECRET || DEFAULT_SESSION_SECRET
 
 const INTERVAL_CHECK_COUNTERPARTY_PARSED = parseInt(process.env.INTERVAL_CHECK_COUNTERPARTY_PARSED || '1000')
+const INTERVAL_CHECK_COUNTERPARTY_MEMPOOL = parseInt(process.env.INTERVAL_CHECK_COUNTERPARTY_MEMPOOL || '10000')
+
+var localMempool = [] //To detect new mempool txs on counterparty
+var firstMempoolCheck = true
+
+const xcpClient = jayson.client.http(COUNTERPARTY_URL)
 
 async function startZmq(notifiers) {
   const sock = new zmq.Subscriber
-
-  const xcpClient = jayson.client.http(COUNTERPARTY_URL)
 
   const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 
@@ -85,6 +89,84 @@ async function startZmq(notifiers) {
   }
 }
 
+async function waitForMempool(notifiers){
+  let found = false
+  let xcpMempool
+  while (!found) {
+    xcpMempoolRequest = await xcpClient.request('get_mempool', [])
+    if (xcpMempoolRequest.result) {
+  	  found = true
+  	  xcpMempool = xcpMempoolRequest.result
+    } else {
+  	  await sleep(INTERVAL_CHECK_COUNTERPARTY_MEMPOOL)
+    }
+  }
+
+  //First, checks for txs in local mempool that are not longer in counterparty mempool and remove them
+  var nextMempoolTxIndex = 0
+  while (nextMempoolTxIndex < localMempool.length){
+  	var nextMempoolTx = localMempool[nextMempoolTxIndex]
+  
+  	let index = findMempoolTx(nextMempoolTx.tx_hash, localMempool)
+  	
+  	if (index == -1){
+		localMempool.splice(nextMempoolTxIndex, 1)
+	  } else {
+  		nextMempoolTxIndex++
+  	}		
+  }
+
+  //Now checks for new txs in counterparty mempool
+  var newMempoolTxs = []
+  for (var nextMempoolTxIndex in xcpMempool){
+	  var nextMempoolTx = xcpMempool[nextMempoolTxIndex]
+	
+	  let index = findMempoolTx(nextMempoolTx.tx_hash, localMempool)
+	
+  	if (index == -1){
+	  	localMempool.push(nextMempoolTx)
+  		newMempoolTxs.push(nextMempoolTx)
+  	}
+  }
+
+  if (!firstMempoolCheck){
+	  if (newMempoolTxs.length > 0){
+	    notifiers.xcp(newMempoolTxs.map(x => {
+	      try {
+  		    return {
+	  	      ...x,
+              bindings: JSON.parse(x.bindings)
+		    }
+	      } catch(e) {
+  		    return x
+	      }
+	    }))
+	  } 
+  } else {
+    firstMempoolCheck = false
+  }
+  
+}
+
+function findMempoolTx(txHash, mempoolArray){
+	//TODO: binary search
+	for (var nextMempoolTxIndex in mempoolArray){
+		var nextMempoolTx = mempoolArray[nextMempoolTxIndex]
+		
+		if (nextMempoolTx.tx_hash == txHash){
+			return nextMempoolTxIndex
+		}
+		
+	}
+	
+	return -1
+}
+
+async function checkXcpMempool(notifiers){
+	await waitForMempool(notifiers)
+	setTimeout(()=>{checkXcpMempool(notifiers)}, INTERVAL_CHECK_COUNTERPARTY_MEMPOOL)
+}
+
 function startServer() {
   const app = express()
   const redisClient = redis.createClient(REDIS_URL)
@@ -115,10 +197,10 @@ function startServer() {
   }
   const notifiers = {
     hashtx: (data) => {
-      notificationObservers.hashtx.forEach(x => x(data))
+      //notificationObservers.hashtx.forEach(x => x(data))
     },
     hashblock: (data) => {
-      notificationObservers.hashblock.forEach(x => x(data))
+      //notificationObservers.hashblock.forEach(x => x(data))
     },
     xcp: (data) => {
       notificationObservers.xcp.forEach(x => x(data))
@@ -194,6 +276,7 @@ function startServer() {
       console.log(`Listening on port ${HTTP_PORT}`)
 
       setImmediate(() => startZmq(notifiers))
+	  setImmediate(() => checkXcpMempool(notifiers))
     }
   })
 
