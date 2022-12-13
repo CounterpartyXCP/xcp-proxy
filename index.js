@@ -24,11 +24,13 @@ const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379/8'
 const DEFAULT_SESSION_SECRET = 'configure this!'
 const SESSION_SECRET = process.env.SESSION_SECRET || DEFAULT_SESSION_SECRET
 
-const INTERVAL_CHECK_COUNTERPARTY_PARSED = parseInt(process.env.INTERVAL_CHECK_COUNTERPARTY_PARSED || '1000')
+const INTERVAL_CHECK_COUNTERPARTY_PARSED = parseInt(process.env.INTERVAL_CHECK_COUNTERPARTY_PARSED || '10000')
 const INTERVAL_CHECK_COUNTERPARTY_MEMPOOL = parseInt(process.env.INTERVAL_CHECK_COUNTERPARTY_MEMPOOL || '10000')
 
 var localMempool = [] //To detect new mempool txs on counterparty
 var firstMempoolCheck = true
+
+var localLastBlock = -1
 
 const xcpClient = jayson.client.http(COUNTERPARTY_URL)
 
@@ -36,32 +38,6 @@ async function startZmq(notifiers) {
   const sock = new zmq.Subscriber
 
   const sleep = (ms) => new Promise(r => setTimeout(r, ms))
-
-  const waitForCounterpartyBlock = (blockhash) => async () => {
-    let found = false
-    let xcpInfo
-    while (!found) {
-      xcpInfo = await xcpClient.request('get_running_info', [])
-      if (xcpInfo.result && xcpInfo.result.last_block && xcpInfo.result.last_block.block_hash === blockhash) {
-        found = true
-      } else {
-        await sleep(INTERVAL_CHECK_COUNTERPARTY_PARSED)
-      }
-    }
-
-    let blocks = await xcpClient.request('get_blocks', {block_indexes: [xcpInfo.result.last_block.block_index]})
-
-    notifiers.xcp(blocks.result[0]._messages.map(x => {
-      try {
-        return {
-          ...x,
-          bindings: JSON.parse(x.bindings)
-        }
-      } catch(e) {
-        return x
-      }
-    }))
-  }
 
   sock.connect(BITCOIN_ZMQ_URL)
   if (notifiers && notifiers.hashtx) {
@@ -87,6 +63,51 @@ async function startZmq(notifiers) {
       }
     }
   }
+}
+
+
+async function waitForCounterpartyBlock(notifiers) {
+  let found = false
+  let xcpInfo = await xcpClient.request('get_running_info', [])
+  let newLastBlock = -1
+  
+  if (xcpInfo.result && xcpInfo.result.last_block && xcpInfo.result.last_block.block_index) {
+    newLastBlock = xcpInfo.result.last_block.block_index	
+	     
+	if ((localLastBlock >= 0) && (newLastBlock >= 0) && (localLastBlock < newLastBlock)){
+	  let blockIndexes = []
+	  for (var i = localLastBlock+1;i<=newLastBlock;i++){
+	    blockIndexes.push(i)
+	  }
+	  
+	  let blocks = await xcpClient.request('get_blocks', {block_indexes: blockIndexes})
+	  let blockMessages = []
+	
+	  for (var nextBlockIndex in blocks.result){
+		var nextBlock = blocks.result[nextBlockIndex]
+		  
+		let nextBlockMessages = nextBlock._messages.map(x => {
+          try {
+            return {
+              ...x,
+              bindings: JSON.parse(x.bindings)
+            }
+          } catch(e) {
+            return x
+          }
+	    })
+
+		
+		blockMessages.push(...nextBlockMessages)		  
+	  }
+	
+	  notifiers.xcp(blockMessages)
+	  
+	  localLastBlock = newLastBlock	  
+	} else {
+	  localLastBlock = newLastBlock	  
+	}
+  }  
 }
 
 async function waitForMempool(notifiers){
@@ -160,6 +181,11 @@ function findMempoolTx(txHash, mempoolArray){
 	}
 	
 	return -1
+}
+
+async function checkParsedBlocks(notifiers){
+	await waitForCounterpartyBlock(notifiers)
+	setTimeout(()=>{checkParsedBlocks(notifiers)}, INTERVAL_CHECK_COUNTERPARTY_PARSED)
 }
 
 async function checkXcpMempool(notifiers){
@@ -275,7 +301,8 @@ function startServer() {
     } else {
       console.log(`Listening on port ${HTTP_PORT}`)
 
-      setImmediate(() => startZmq(notifiers))
+      //setImmediate(() => startZmq(notifiers))
+	  setImmediate(() => checkParsedBlocks(notifiers))
 	  setImmediate(() => checkXcpMempool(notifiers))
     }
   })
