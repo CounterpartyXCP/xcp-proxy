@@ -101,7 +101,9 @@ async function waitForCounterpartyBlock(notifiers) {
 		blockMessages.push(...nextBlockMessages)		  
 	  }
 	
-	  notifiers.xcp(blockMessages)
+	  if (blockMessages.length > 0){
+	    notifiers.xcp(blockMessages)
+	  }
 	  
 	  localLastBlock = newLastBlock	  
 	} else {
