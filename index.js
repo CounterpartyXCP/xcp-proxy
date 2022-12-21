@@ -72,21 +72,21 @@ async function waitForCounterpartyBlock(notifiers) {
   let newLastBlock = -1
   
   if (xcpInfo.result && xcpInfo.result.last_block && xcpInfo.result.last_block.block_index) {
-    newLastBlock = xcpInfo.result.last_block.block_index	
-	     
-	if ((localLastBlock >= 0) && (newLastBlock >= 0) && (localLastBlock < newLastBlock)){
-	  let blockIndexes = []
-	  for (var i = localLastBlock+1;i<=newLastBlock;i++){
-	    blockIndexes.push(i)
-	  }
-	  
-	  let blocks = await xcpClient.request('get_blocks', {block_indexes: blockIndexes})
-	  let blockMessages = []
-	
-	  for (var nextBlockIndex in blocks.result){
-		var nextBlock = blocks.result[nextBlockIndex]
-		  
-		let nextBlockMessages = nextBlock._messages.map(x => {
+    newLastBlock = xcpInfo.result.last_block.block_index    
+         
+    if ((localLastBlock >= 0) && (newLastBlock >= 0) && (localLastBlock < newLastBlock)){
+      let blockIndexes = []
+      for (var i = localLastBlock+1;i<=newLastBlock;i++){
+        blockIndexes.push(i)
+      }
+      
+      let blocks = await xcpClient.request('get_blocks', {block_indexes: blockIndexes})
+      let blockMessages = []
+    
+      for (var nextBlockIndex in blocks.result){
+        var nextBlock = blocks.result[nextBlockIndex]
+          
+        let nextBlockMessages = nextBlock._messages.map(x => {
           try {
             return {
               ...x,
@@ -95,18 +95,20 @@ async function waitForCounterpartyBlock(notifiers) {
           } catch(e) {
             return x
           }
-	    })
+        })
 
-		
-		blockMessages.push(...nextBlockMessages)		  
-	  }
-	
-	  notifiers.xcp(blockMessages)
-	  
-	  localLastBlock = newLastBlock	  
-	} else {
-	  localLastBlock = newLastBlock	  
-	}
+        
+        blockMessages.push(...nextBlockMessages)          
+      }
+    
+      if (blockMessages.length > 0){
+        notifiers.xcp(blockMessages)
+      }
+      
+      localLastBlock = newLastBlock   
+    } else {
+      localLastBlock = newLastBlock   
+    }
   }  
 }
 
@@ -116,53 +118,53 @@ async function waitForMempool(notifiers){
   while (!found) {
     xcpMempoolRequest = await xcpClient.request('get_mempool', [])
     if (xcpMempoolRequest.result) {
-  	  found = true
-  	  xcpMempool = xcpMempoolRequest.result
+      found = true
+      xcpMempool = xcpMempoolRequest.result
     } else {
-  	  await sleep(INTERVAL_CHECK_COUNTERPARTY_MEMPOOL)
+      await sleep(INTERVAL_CHECK_COUNTERPARTY_MEMPOOL)
     }
   }
 
   //First, checks for txs in local mempool that are not longer in counterparty mempool and remove them
   var nextMempoolTxIndex = 0
   while (nextMempoolTxIndex < localMempool.length){
-  	var nextMempoolTx = localMempool[nextMempoolTxIndex]
+    var nextMempoolTx = localMempool[nextMempoolTxIndex]
   
-  	let index = findMempoolTx(nextMempoolTx.tx_hash, localMempool)
-  	
-  	if (index == -1){
-		localMempool.splice(nextMempoolTxIndex, 1)
-	  } else {
-  		nextMempoolTxIndex++
-  	}		
+    let index = findMempoolTx(nextMempoolTx.tx_hash, localMempool)
+    
+    if (index == -1){
+        localMempool.splice(nextMempoolTxIndex, 1)
+      } else {
+        nextMempoolTxIndex++
+    }       
   }
 
   //Now checks for new txs in counterparty mempool
   var newMempoolTxs = []
   for (var nextMempoolTxIndex in xcpMempool){
-	  var nextMempoolTx = xcpMempool[nextMempoolTxIndex]
-	
-	  let index = findMempoolTx(nextMempoolTx.tx_hash, localMempool)
-	
-  	if (index == -1){
-	  	localMempool.push(nextMempoolTx)
-  		newMempoolTxs.push(nextMempoolTx)
-  	}
+      var nextMempoolTx = xcpMempool[nextMempoolTxIndex]
+    
+      let index = findMempoolTx(nextMempoolTx.tx_hash, localMempool)
+    
+    if (index == -1){
+        localMempool.push(nextMempoolTx)
+        newMempoolTxs.push(nextMempoolTx)
+    }
   }
 
   if (!firstMempoolCheck){
-	  if (newMempoolTxs.length > 0){
-	    notifiers.xcp(newMempoolTxs.map(x => {
-	      try {
-  		    return {
-	  	      ...x,
+      if (newMempoolTxs.length > 0){
+        notifiers.xcp(newMempoolTxs.map(x => {
+          try {
+            return {
+              ...x,
               bindings: JSON.parse(x.bindings)
-		    }
-	      } catch(e) {
-  		    return x
-	      }
-	    }))
-	  } 
+            }
+          } catch(e) {
+            return x
+          }
+        }))
+      } 
   } else {
     firstMempoolCheck = false
   }
@@ -170,27 +172,27 @@ async function waitForMempool(notifiers){
 }
 
 function findMempoolTx(txHash, mempoolArray){
-	//TODO: binary search
-	for (var nextMempoolTxIndex in mempoolArray){
-		var nextMempoolTx = mempoolArray[nextMempoolTxIndex]
-		
-		if (nextMempoolTx.tx_hash == txHash){
-			return nextMempoolTxIndex
-		}
-		
-	}
-	
-	return -1
+    //TODO: binary search
+    for (var nextMempoolTxIndex in mempoolArray){
+        var nextMempoolTx = mempoolArray[nextMempoolTxIndex]
+        
+        if (nextMempoolTx.tx_hash == txHash){
+            return nextMempoolTxIndex
+        }
+        
+    }
+    
+    return -1
 }
 
 async function checkParsedBlocks(notifiers){
-	await waitForCounterpartyBlock(notifiers)
-	setTimeout(()=>{checkParsedBlocks(notifiers)}, INTERVAL_CHECK_COUNTERPARTY_PARSED)
+    await waitForCounterpartyBlock(notifiers)
+    setTimeout(()=>{checkParsedBlocks(notifiers)}, INTERVAL_CHECK_COUNTERPARTY_PARSED)
 }
 
 async function checkXcpMempool(notifiers){
-	await waitForMempool(notifiers)
-	setTimeout(()=>{checkXcpMempool(notifiers)}, INTERVAL_CHECK_COUNTERPARTY_MEMPOOL)
+    await waitForMempool(notifiers)
+    setTimeout(()=>{checkXcpMempool(notifiers)}, INTERVAL_CHECK_COUNTERPARTY_MEMPOOL)
 }
 
 function startServer() {
@@ -302,8 +304,8 @@ function startServer() {
       console.log(`Listening on port ${HTTP_PORT}`)
 
       //setImmediate(() => startZmq(notifiers))
-	  setImmediate(() => checkParsedBlocks(notifiers))
-	  setImmediate(() => checkXcpMempool(notifiers))
+      setImmediate(() => checkParsedBlocks(notifiers))
+      setImmediate(() => checkXcpMempool(notifiers))
     }
   })
 
