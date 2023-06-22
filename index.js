@@ -2,6 +2,7 @@
 
 require('dotenv').config({ path: process.env.SECRETS_PATH || './' })
 const http = require('http')
+const https = require('https')
 const net = require('net')
 const { URL } = require('url')
 const express = require('express')
@@ -16,7 +17,11 @@ const jayson = require('jayson/promise')
 //const mariadb = require('mariadb')
 const yargs = require('yargs/yargs')
 
+const SSL_KEY_FILE_PATH = "/ssl_config/counterwallet.key"
+const SSL_CERT_FILE_PATH = "/ssl_config/counterwallet.pem"
+
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || 8097)
+const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || 8098)
 const ADDRINDEXRS_URL = new URL(process.env.ADDRINDEXRS_URL || 'tcp://localhost:8432')
 const COUNTERPARTY_URL = process.env.COUNTERPARTY_URL || 'http://rpc:rpc@localhost:4000'
 const BITCOIN_ZMQ_URL = process.env.BITCOIN_ZMQ_URL || 'tcp://localhost:28832'
@@ -308,6 +313,15 @@ function startServer() {
       setImmediate(() => checkXcpMempool(notifiers))
     }
   })
+
+
+  if (fs.existsSync(SSL_KEY_FILE_PATH) && fs.existsSync(SSL_CERT_FILE_PATH)){
+    https.createServer({
+      key: fs.readFileSync(SSL_KEY_FILE_PATH),
+      cert: fs.readFileSync(SSL_CERT_FILE_PATH),
+    }, app).listen(HTTPS_PORT)
+    console.log(`(HTTPS) Listening on port ${HTTPS_PORT}`)
+  }
 
   if (SESSION_SECRET === DEFAULT_SESSION_SECRET) {
     console.error(`Using default session secret "${DEFAULT_SESSION_SECRET}", This is very dangerous: pass SESSION_SECRET environment variable to modify it`)
