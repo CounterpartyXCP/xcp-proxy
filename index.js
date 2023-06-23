@@ -17,8 +17,8 @@ const jayson = require('jayson/promise')
 //const mariadb = require('mariadb')
 const yargs = require('yargs/yargs')
 
-const SSL_KEY_FILE_PATH = "/ssl_config/counterwallet.key"
-const SSL_CERT_FILE_PATH = "/ssl_config/counterwallet.pem"
+const SSL_KEY_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.key"
+const SSL_CERT_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.pem"
 
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || 8097)
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || 8098)
