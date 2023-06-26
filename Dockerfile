@@ -10,4 +10,9 @@ RUN npm install
 COPY ./static/ /app/static/
 COPY ./index.js /app/
 
+# set up default SSL certs to be self-signed (can be replaced later)
+RUN mkdir /root/.config/xcp-proxy/ssl
+RUN cp -a /etc/ssl/certs/ssl-cert-snakeoil.pem /root/.config/xcp-proxy/ssl/xcp_proxy.pem
+RUN cp -a /etc/ssl/private/ssl-cert-snakeoil.key /root/.config/xcp-proxy/ssl/xcp_proxy.key
+
 CMD npm start
