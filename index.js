@@ -17,8 +17,12 @@ const jayson = require('jayson/promise')
 //const mariadb = require('mariadb')
 const yargs = require('yargs/yargs')
 
-const SSL_KEY_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.key"
+const SSL_KEY_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.key" 
 const SSL_CERT_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.pem"
+
+const DEFAULT_SSL_KEY_FILE_PATH = "/root/.config/xcp-proxy-default/ssl/xcp_proxy.key" 
+const DEFAULT_SSL_CERT_FILE_PATH = "/root/.config/xcp-proxy-default/ssl/xcp_proxy.pem"
+
 
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || 8097)
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || 8098)
@@ -314,14 +318,16 @@ function startServer() {
     }
   })
 
-
-  if (fs.existsSync(SSL_KEY_FILE_PATH) && fs.existsSync(SSL_CERT_FILE_PATH)){
-    https.createServer({
-      key: fs.readFileSync(SSL_KEY_FILE_PATH),
-      cert: fs.readFileSync(SSL_CERT_FILE_PATH),
-    }, app).listen(HTTPS_PORT)
-    console.log(`(HTTPS) Listening on port ${HTTPS_PORT}`)
+  if (!(fs.existsSync(SSL_KEY_FILE_PATH) && fs.existsSync(SSL_CERT_FILE_PATH))){
+    SSL_KEY_FILE_PATH = DEFAULT_SSL_KEY_FILE_PATH
+    SSL_CERT_FILE_PATH = DEFAULT_SSL_CERT_FILE_PATH
   }
+
+  https.createServer({
+    key: fs.readFileSync(SSL_KEY_FILE_PATH),
+    cert: fs.readFileSync(SSL_CERT_FILE_PATH),
+  }, app).listen(HTTPS_PORT)
+  console.log(`(HTTPS) Listening on port ${HTTPS_PORT}`)  
 
   if (SESSION_SECRET === DEFAULT_SESSION_SECRET) {
     console.error(`Using default session secret "${DEFAULT_SESSION_SECRET}", This is very dangerous: pass SESSION_SECRET environment variable to modify it`)
