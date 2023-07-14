@@ -20,8 +20,8 @@ const yargs = require('yargs/yargs')
 const SSL_KEY_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.key" 
 const SSL_CERT_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.pem"
 
-const DEFAULT_SSL_KEY_FILE_PATH = "/root/.config/xcp-proxy-default/ssl/xcp_proxy.key" 
-const DEFAULT_SSL_CERT_FILE_PATH = "/root/.config/xcp-proxy-default/ssl/xcp_proxy.pem"
+const DEFAULT_SSL_KEY_FILE_PATH = "/root/xcp-proxy-default/ssl/xcp_proxy.key" 
+const DEFAULT_SSL_CERT_FILE_PATH = "/root/xcp-proxy-default/ssl/xcp_proxy.pem"
 
 
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || 8097)
