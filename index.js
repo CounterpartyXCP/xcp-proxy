@@ -16,9 +16,10 @@ const redis = require('redis')
 const jayson = require('jayson/promise')
 //const mariadb = require('mariadb')
 const yargs = require('yargs/yargs')
+const fs = require('fs')
 
-const SSL_KEY_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.key" 
-const SSL_CERT_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.pem"
+var SSL_KEY_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.key" 
+var SSL_CERT_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.pem"
 
 const DEFAULT_SSL_KEY_FILE_PATH = "/root/xcp-proxy-default/ssl/xcp_proxy.key" 
 const DEFAULT_SSL_CERT_FILE_PATH = "/root/xcp-proxy-default/ssl/xcp_proxy.pem"
@@ -291,6 +292,11 @@ function startServer() {
         client.send(msg)
       }
     })
+    wssInstance.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(msg)
+      }
+    })
   }
 
   notificationObservers.hashblock.push((data) => {
@@ -323,11 +329,27 @@ function startServer() {
     SSL_CERT_FILE_PATH = DEFAULT_SSL_CERT_FILE_PATH
   }
 
-  https.createServer({
+  var httpsServer = https.createServer({
     key: fs.readFileSync(SSL_KEY_FILE_PATH),
     cert: fs.readFileSync(SSL_CERT_FILE_PATH),
-  }, app).listen(HTTPS_PORT)
-  console.log(`(HTTPS) Listening on port ${HTTPS_PORT}`)  
+  }, app).listen(HTTPS_PORT, (err)=> {
+    if (err) {
+      console.log(`Error while listening on port ${HTTPS_PORT}`, err)
+    } else {
+      console.log(`(HTTPS) Listening on port ${HTTPS_PORT}`)
+
+      //setImmediate(() => startZmq(notifiers))
+      //setImmediate(() => checkParsedBlocks(notifiers))
+      //setImmediate(() => checkXcpMempool(notifiers))
+    } 
+  })
+  httpsServer.addListener('upgrade', (req, res, head) => {
+    console.log('UPGRADE:', req.url)
+      
+    wsInstance.getWss().handleUpgrade(req, res, head, function done(ws) {
+      wsInstance.getWss().emit('connection', ws, req)
+    })
+  })
 
   if (SESSION_SECRET === DEFAULT_SESSION_SECRET) {
     console.error(`Using default session secret "${DEFAULT_SESSION_SECRET}", This is very dangerous: pass SESSION_SECRET environment variable to modify it`)
