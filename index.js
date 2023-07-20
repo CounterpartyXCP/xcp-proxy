@@ -2,6 +2,7 @@
 
 require('dotenv').config({ path: process.env.SECRETS_PATH || './' })
 const http = require('http')
+const https = require('https')
 const net = require('net')
 const { URL } = require('url')
 const express = require('express')
@@ -15,8 +16,17 @@ const redis = require('redis')
 const jayson = require('jayson/promise')
 //const mariadb = require('mariadb')
 const yargs = require('yargs/yargs')
+const fs = require('fs')
+
+var SSL_KEY_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.key" 
+var SSL_CERT_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.pem"
+
+const DEFAULT_SSL_KEY_FILE_PATH = "/root/xcp-proxy-default/ssl/xcp_proxy.key" 
+const DEFAULT_SSL_CERT_FILE_PATH = "/root/xcp-proxy-default/ssl/xcp_proxy.pem"
+
 
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || 8097)
+const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || 8098)
 const ADDRINDEXRS_URL = new URL(process.env.ADDRINDEXRS_URL || 'tcp://localhost:8432')
 const COUNTERPARTY_URL = process.env.COUNTERPARTY_URL || 'http://rpc:rpc@localhost:4000'
 const BITCOIN_ZMQ_URL = process.env.BITCOIN_ZMQ_URL || 'tcp://localhost:28832'
@@ -307,6 +317,33 @@ function startServer() {
       setImmediate(() => checkParsedBlocks(notifiers))
       setImmediate(() => checkXcpMempool(notifiers))
     }
+  })
+
+  if (!(fs.existsSync(SSL_KEY_FILE_PATH) && fs.existsSync(SSL_CERT_FILE_PATH))){
+    SSL_KEY_FILE_PATH = DEFAULT_SSL_KEY_FILE_PATH
+    SSL_CERT_FILE_PATH = DEFAULT_SSL_CERT_FILE_PATH
+  }
+
+  var httpsServer = https.createServer({
+    key: fs.readFileSync(SSL_KEY_FILE_PATH),
+    cert: fs.readFileSync(SSL_CERT_FILE_PATH),
+  }, app).listen(HTTPS_PORT, (err)=> {
+    if (err) {
+      console.log(`Error while listening on port ${HTTPS_PORT}`, err)
+    } else {
+      console.log(`(HTTPS) Listening on port ${HTTPS_PORT}`)
+
+      //setImmediate(() => startZmq(notifiers))
+      //setImmediate(() => checkParsedBlocks(notifiers))
+      //setImmediate(() => checkXcpMempool(notifiers))
+    } 
+  })
+  httpsServer.addListener('upgrade', (req, res, head) => {
+    console.log('UPGRADE:', req.url)
+      
+    wsInstance.getWss().handleUpgrade(req, res, head, function done(ws) {
+      wsInstance.getWss().emit('connection', ws, req)
+    })
   })
 
   if (SESSION_SECRET === DEFAULT_SESSION_SECRET) {
