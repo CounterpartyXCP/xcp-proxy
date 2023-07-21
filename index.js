@@ -17,6 +17,7 @@ const jayson = require('jayson/promise')
 //const mariadb = require('mariadb')
 const yargs = require('yargs/yargs')
 const fs = require('fs')
+const path = require('path')
 
 var SSL_KEY_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.key" 
 var SSL_CERT_FILE_PATH = "/root/.config/xcp-proxy/ssl/xcp_proxy.pem"
@@ -320,8 +321,14 @@ function startServer() {
   })
 
   if (!(fs.existsSync(SSL_KEY_FILE_PATH) && fs.existsSync(SSL_CERT_FILE_PATH))){
-    SSL_KEY_FILE_PATH = DEFAULT_SSL_KEY_FILE_PATH
-    SSL_CERT_FILE_PATH = DEFAULT_SSL_CERT_FILE_PATH
+    var dir = path.dirname(SSL_KEY_FILE_PATH)
+    
+    if (!fs.existsSync(dir)){
+      fs.mkdirSync(dir)
+    }  
+      
+    fs.copyFileSync(DEFAULT_SSL_KEY_FILE_PATH, SSL_KEY_FILE_PATH, fs.constants.COPYFILE_EXCL)
+    fs.copyFileSync(DEFAULT_SSL_CERT_FILE_PATH, SSL_CERT_FILE_PATH, fs.constants.COPYFILE_EXCL)
   }
 
   var httpsServer = https.createServer({
@@ -339,8 +346,6 @@ function startServer() {
     } 
   })
   httpsServer.addListener('upgrade', (req, res, head) => {
-    console.log('UPGRADE:', req.url)
-      
     wsInstance.getWss().handleUpgrade(req, res, head, function done(ws) {
       wsInstance.getWss().emit('connection', ws, req)
     })
